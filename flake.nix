@@ -1,5 +1,5 @@
 {
-  description = "ri7's nix darwin system";
+  description = "ri7's nix for darwin and linux system";
 
   inputs = {
     # Package sets
@@ -24,7 +24,7 @@
   outputs = { self, darwin, home-manager, flake-utils,  ... }@inputs:
     let
       inherit (darwin.lib) darwinSystem;
-      inherit (inputs.nixpkgs-unstable.lib) attrValues makeOverridable optionalAttrs singleton;
+      inherit (inputs.nixpkgs-unstable.lib) attrValues makeOverridable optionalAttrs singleton nixosSystem;
 
       # Configuration for `nixpkgs`
       nixpkgsConfig = {
@@ -81,12 +81,24 @@
       ];
     in
     {
+      #  Current configuration for linux
+      nixosConfigurations = rec {
+        bootstrap-x86 = makeOverridable nixosSystem {
+          system = "x86_64-linux";
+          modules = [ ./system/bootstrap.nix { nixpkgs = nixpkgsConfig; } ];
+        };
+      };
+
       # Current Macbook Pro M1 from Ruangguru.com
       darwinConfigurations = rec {
         # TODO refactor darwin.nix to make common or bootstrap configuration
         bootstrap-x86 = makeOverridable darwinSystem {
           system = "x86_64-darwin";
-          modules = [ ./system/bootstrap.nix { nixpkgs = nixpkgsConfig; } ];
+          modules = [ 
+            ./system/bootstrap.nix { nixpkgs = nixpkgsConfig; } 
+            ./system/packages.nix { nixpkgs = nixpkgsConfig; } 
+            ./system/nix-index.nix { nixpkgs = nixpkgsConfig; } 
+          ];
         };
 
         bootstrap-arm = bootstrap-x86.override { system = "aarch64-darwin"; };
@@ -102,6 +114,18 @@
                 "Wi-Fi"
                 "USB 10/100/1000 LAN"
               ];
+            }
+          ];
+        };
+
+        githubCI = darwinSystem {
+          system = "x86_64-darwin";
+          modules = nixDarwinCommonModules ++ [
+            {
+              users.primaryUser = primaryUserInfo // {
+                username = "runner";
+                nixConfigDirectory = "/Users/runner/work/nixpkgs/nixpkgs";
+              };
             }
           ];
         };
