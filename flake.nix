@@ -21,7 +21,7 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, darwin, home-manager, flake-utils,  ... }@inputs:
+  outputs = { self, darwin, home-manager, flake-utils, ... }@inputs:
     let
       inherit (darwin.lib) darwinSystem;
       inherit (inputs.nixpkgs-unstable.lib) attrValues makeOverridable optionalAttrs singleton;
@@ -64,8 +64,8 @@
             nix.nixPath = { nixpkgs = "${primaryUser.nixConfigDirectory}/nixpkgs.nix"; };
             # `home-manager` config
             users.users.${primaryUser.username} = {
-            home = "/Users/${primaryUser.username}";
-            shell = pkgs.fish;
+              home = "/Users/${primaryUser.username}";
+              shell = pkgs.fish;
             };
             home-manager.useGlobalPkgs = true;
             home-manager.users.${primaryUser.username} = {
@@ -85,7 +85,11 @@
         # TODO refactor darwin.nix to make common or bootstrap configuration
         bootstrap-x86 = makeOverridable darwinSystem {
           system = "x86_64-darwin";
-          modules = [ ./system/bootstrap.nix { nixpkgs = nixpkgsConfig; } ];
+          modules = [ 
+            self.commonModules.system { nixpkgs = nixpkgsConfig; }
+            self.commonModules.system-shells { nixpkgs = nixpkgsConfig; }
+            self.darwinModules.system-darwin { nixpkgs = nixpkgsConfig; }
+          ];
         };
 
         bootstrap-arm = bootstrap-x86.override { system = "aarch64-darwin"; };
@@ -120,6 +124,17 @@
           ];
         };
 
+        githubCI = darwinSystem {
+          system = "x86_64-darwin";
+          modules = nixDarwinCommonModules ++ [
+            {
+              users.primaryUser = primaryUserInfo // {
+                username = "runner";
+                nixConfigDirectory = "/Users/runner/work/nixpkgs/nixpkgs";
+              };
+            }
+          ];
+        };
       };
 
       # Overlays --------------------------------------------------------------- {{{
@@ -153,7 +168,7 @@
       # `nix-darwin` modules that are pending upstream, or patched versions waiting on upstream
       # fixes.
       darwinModules = {
-        system-darwin = import ./system/darwin/system.nix; 
+        system-darwin = import ./system/darwin/system.nix;
         system-darwin-packages = import ./system/darwin/packages.nix;
         system-darwin-security-pam = import ./system/darwin/security.nix;
         system-darwin-gpg = import ./system/darwin/gpg.nix;
